@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../controllers/phonetic_lipsync_controller.dart';
 
@@ -209,7 +209,8 @@ class VisemeInterpolator {
     
     // Calcular delta de tiempo
     final deltaTime1 = last.timestamp - prev.timestamp;
-    final deltaTime2 = prev.timestamp - prevPrev.timestamp;
+    // Variable no utilizada, pero mantenida para referencia futura
+    // final deltaTime2 = prev.timestamp - prevPrev.timestamp;
     
     // Proyectar próxima intensidad basada en tendencia
     final projectedIntensity = last.viseme.intensity + deltaIntensity1 * 0.7 + deltaIntensity2 * 0.3;

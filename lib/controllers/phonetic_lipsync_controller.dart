@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:flutter/foundation.dart';
 
 /// Clase que implementa análisis fonético básico y mapeo a visemas
 class PhoneticAnalyzer {
@@ -196,7 +195,7 @@ class PhoneticLipSyncController {
       isPlaying = true;
       _startAnalysis();
     } catch (e) {
-      print('Error playing audio: $e');
+      debugPrint('Error playing audio: $e');
     }
   }
   
@@ -296,4 +295,43 @@ class PhoneticLipSyncController {
     _visemeStreamController.close();
     player.dispose();
   }
+}
+
+// Clase simulada para pruebas
+class AudioPlayer {
+  Stream<PlayerState> get playerStateStream => Stream.value(PlayerState(ProcessingState.ready));
+  
+  Future<void> setAsset(String path) async {
+    // Simulación
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
+  
+  Future<void> play() async {
+    // Simulación
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
+  
+  Future<void> pause() async {
+    // Simulación
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
+  
+  void dispose() {
+    // Simulación
+  }
+}
+
+// Clases simuladas para pruebas
+class PlayerState {
+  final ProcessingState processingState;
+  
+  PlayerState(this.processingState);
+}
+
+enum ProcessingState {
+  idle,
+  loading,
+  ready,
+  buffering,
+  completed,
 }

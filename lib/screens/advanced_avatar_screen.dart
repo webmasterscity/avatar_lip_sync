@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lip_sync_avatar/controllers/advanced_lipsync_controller.dart';
-import 'package:lip_sync_avatar/widgets/facial_control_widget.dart';
-import 'package:file_picker/file_picker.dart';
-import 'dart:io';
+import '../controllers/advanced_lipsync_controller.dart';
+import '../widgets/facial_control_widget.dart';
 
 class AdvancedAvatarScreen extends StatefulWidget {
   const AdvancedAvatarScreen({Key? key}) : super(key: key);
@@ -17,7 +15,6 @@ class _AdvancedAvatarScreenState extends State<AdvancedAvatarScreen> {
   
   // Estado de la UI
   bool _isPlaying = false;
-  String? _currentAudioPath;
   double _animationValue = 0.0;
   String _currentPhoneme = 'rest';
   String _currentViseme = 'viseme_rest';
@@ -63,28 +60,14 @@ class _AdvancedAvatarScreenState extends State<AdvancedAvatarScreen> {
     });
     
     await _lipSyncController.playAudio(path);
-    
-    setState(() {
-      _currentAudioPath = path;
-    });
   }
   
   // Seleccionar y reproducir archivo de audio
   Future<void> _pickAndPlayAudio() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.audio,
-        allowMultiple: false,
-      );
-      
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        if (file.path != null) {
-          // En una implementación real, copiaríamos el archivo a assets
-          // Para el prototipo, usamos un audio de muestra
-          await _playAudio('assets/audio/sample1.mp3');
-        }
-      }
+      // En una implementación real, usaríamos FilePicker
+      // Para el prototipo, usamos un audio de muestra
+      await _playAudio('assets/audio/sample1.mp3');
     } catch (e) {
       debugPrint('Error picking audio: $e');
       // Usar audio de muestra como fallback

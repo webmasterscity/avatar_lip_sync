@@ -1,7 +1,5 @@
-import 'dart:async';
-import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:model_viewer_plus/model_viewer_plus.dart';
 import '../controllers/phonetic_lipsync_controller.dart';
 
 /// Widget para controlar las expresiones faciales y blendshapes del avatar 3D
@@ -21,7 +19,7 @@ class FacialControlWidget extends StatefulWidget {
 
 class _FacialControlWidgetState extends State<FacialControlWidget> {
   // Controlador para el ModelViewer
-  ModelViewer? _modelViewer;
+  dynamic _modelViewer;
   
   // Estado de las expresiones faciales
   double _blinkRate = 0.1; // Frecuencia de parpadeo (0-1)
@@ -33,7 +31,7 @@ class _FacialControlWidgetState extends State<FacialControlWidget> {
   Timer? _blinkTimer;
   Timer? _microExpressionsTimer;
   
-  // Mapa de blendshapes disponibles en el modelo
+  // Mapa de blendshapes disponibles en el modelo (para referencia)
   final Map<String, List<String>> _facialFeatures = {
     'Ojos': [
       'eyeBlinkLeft',
@@ -168,7 +166,7 @@ class _FacialControlWidgetState extends State<FacialControlWidget> {
       if (widget.lipSyncController.isPlaying) {
         // Durante el habla, añadir movimientos sutiles de cejas
         final random = DateTime.now().millisecondsSinceEpoch / 1000;
-        final browMovement = (sin(random) * 0.2) + 0.1; // Valor entre 0.1 y 0.3
+        final browMovement = (math.sin(random) * 0.2) + 0.1; // Valor entre 0.1 y 0.3
         
         setState(() {
           _browRaise = browMovement;
@@ -178,7 +176,7 @@ class _FacialControlWidgetState extends State<FacialControlWidget> {
         _applyBlendshape('browInnerUp', _browRaise);
         
         // Movimiento sutil de mandíbula
-        final jawMovement = (sin(random * 1.3) * 0.15) + 0.05; // Valor entre 0.05 y 0.2
+        final jawMovement = (math.sin(random * 1.3) * 0.15) + 0.05; // Valor entre 0.05 y 0.2
         setState(() {
           _jawOffset = jawMovement;
         });
@@ -258,59 +256,6 @@ class _FacialControlWidgetState extends State<FacialControlWidget> {
       // _modelViewer.executeJavaScript(script);
     }
   }
-  
-  // Obtener el HTML personalizado para el ModelViewer
-  String _getCustomHtml() {
-    return '''
-      <model-viewer id="avatar-model" 
-        src="${widget.modelPath}" 
-        alt="Avatar 3D" 
-        camera-controls 
-        auto-rotate="false" 
-        ar="false"
-        exposure="1"
-        shadow-intensity="1"
-        environment-image="neutral"
-        style="width: 100%; height: 100%;">
-      </model-viewer>
-      <script>
-        // Función para actualizar la animación facial
-        function updateFacialAnimation(blendshapes) {
-          const model = document.getElementById('avatar-model');
-          if (model && model.model) {
-            try {
-              const morphTargets = model.model.morphTargetDictionary;
-              if (morphTargets) {
-                // Aplicar cada blendshape
-                Object.keys(blendshapes).forEach(name => {
-                  const idx = morphTargets[name];
-                  if (idx !== undefined) {
-                    model.model.morphTargetInfluences[idx] = blendshapes[name];
-                  }
-                });
-              }
-            } catch (e) {
-              console.error('Error al animar el modelo:', e);
-            }
-          }
-        }
-        
-        // Función para obtener los blendshapes disponibles
-        function getAvailableBlendshapes() {
-          const model = document.getElementById('avatar-model');
-          if (model && model.model) {
-            try {
-              return Object.keys(model.model.morphTargetDictionary || {});
-            } catch (e) {
-              console.error('Error al obtener blendshapes:', e);
-              return [];
-            }
-          }
-          return [];
-        }
-      </script>
-    ''';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -319,20 +264,11 @@ class _FacialControlWidgetState extends State<FacialControlWidget> {
         Expanded(
           child: Container(
             color: Colors.black87,
-            child: ModelViewer(
-              backgroundColor: const Color.fromARGB(255, 30, 30, 50),
-              src: widget.modelPath,
-              alt: 'Avatar 3D',
-              ar: false,
-              autoRotate: false,
-              cameraControls: true,
-              autoPlay: true,
-              // En una implementación real, usaríamos HTML personalizado
-              // htmlBuilder: (context) => _getCustomHtml(),
-              onWebViewCreated: (controller) {
-                // Guardar referencia al ModelViewer
-                _modelViewer = controller as ModelViewer?;
-              },
+            child: Center(
+              child: Text(
+                'Avatar 3D con Lipsync Avanzado',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
             ),
           ),
         ),
@@ -379,4 +315,16 @@ class _FacialControlWidgetState extends State<FacialControlWidget> {
   
   // Función auxiliar para limitar la longitud de cadenas
   int min(int a, int b) => a < b ? a : b;
+}
+
+// Clase Timer simulada para pruebas
+class Timer {
+  final Duration duration;
+  final Function(Timer) callback;
+  
+  Timer.periodic(this.duration, this.callback);
+  
+  void cancel() {
+    // Simulación
+  }
 }

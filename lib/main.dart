@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lip_sync_avatar/screens/advanced_avatar_screen.dart';
+import 'screens/advanced_avatar_screen.dart';
 
 void main() {
   runApp(const MyApp());

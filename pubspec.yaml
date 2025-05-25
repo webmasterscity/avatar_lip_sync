@@ -1,33 +1,23 @@
 name: lip_sync_avatar
-description: Aplicación Flutter con sincronización labial de avatar.
+description: Una aplicación Flutter con avatar 3D realista y sincronización labial.
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.6 <4.0.0'
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-
-  # UI y animación
   cupertino_icons: ^1.0.2
-  rive: ^0.11.0
-  flutter_hooks: ^0.18.6
-  
-  # Audio
+  model_viewer_plus: ^1.5.0
   just_audio: ^0.9.34
-  audio_session: ^0.1.14
-  
-  # Análisis de Audio
-  flutter_fft: ^1.0.2+6
-  
-  # Utilidades
-  file_picker: ^5.3.1
+  flutter_3d_controller: ^1.0.0
   path_provider: ^2.0.15
-  permission_handler: ^10.2.0
-  provider: ^6.0.5
+  file_picker: ^5.3.2
+  permission_handler: ^10.3.0
+  flutter_archive: ^5.0.0
+  http: ^1.1.0
 
 dev_dependencies:
   flutter_test:
@@ -36,7 +26,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  
   assets:
     - assets/
-    - assets/rive/
+    - assets/avatar.glb
+    - assets/audio/

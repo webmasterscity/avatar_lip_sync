@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../controllers/advanced_lipsync_controller.dart';
+import '../models/viseme_data.dart';
 import '../widgets/facial_control_widget.dart';
 
 class AdvancedAvatarScreen extends StatefulWidget {

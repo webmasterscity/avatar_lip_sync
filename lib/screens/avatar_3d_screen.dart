@@ -1,57 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:model_viewer_plus/model_viewer_plus.dart';
-import 'dart:async';
-import 'dart:math';
-import 'package:flutter/services.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-
-class LipSyncController {
-  // Mapeo de fonemas a valores de blendshapes
-  final Map<String, double> phonemeToBlendshape = {
-    'A': 0.7,   // Boca abierta
-    'E': 0.5,   // Boca semi-abierta, labios estirados
-    'I': 0.3,   // Boca pequeña, labios estirados
-    'O': 0.6,   // Boca redondeada
-    'U': 0.4,   // Boca pequeña, redondeada
-    'rest': 0.0 // Boca cerrada
-  };
-  
-  // Método para obtener el valor de blendshape basado en la intensidad del audio
-  double getBlendshapeValue(double audioLevel) {
-    if (audioLevel < 0.1) return phonemeToBlendshape['rest'] ?? 0.0;
-    if (audioLevel < 0.3) return phonemeToBlendshape['I'] ?? 0.3;
-    if (audioLevel < 0.5) return phonemeToBlendshape['E'] ?? 0.5;
-    if (audioLevel < 0.7) return phonemeToBlendshape['U'] ?? 0.4;
-    if (audioLevel < 0.9) return phonemeToBlendshape['O'] ?? 0.6;
-    return phonemeToBlendshape['A'] ?? 0.7;
-  }
-  
-  // Método para generar comandos JavaScript para animar el modelo 3D
-  String generateLipSyncCommand(double blendshapeValue) {
-    // Esta función generará el comando JavaScript para manipular los morph targets del modelo
-    return '''
-      (function() {
-        const model = document.querySelector('model-viewer');
-        if (model && model.model) {
-          // Acceder a los morph targets del modelo (si están disponibles)
-          const morphTargets = model.model.morphTargetDictionary;
-          if (morphTargets) {
-            // Buscar morph targets relacionados con la boca
-            const mouthTargets = ['mouthOpen', 'jawOpen', 'viseme_aa', 'viseme_oh'];
-            mouthTargets.forEach(target => {
-              const idx = morphTargets[target];
-              if (idx !== undefined) {
-                model.model.morphTargetInfluences[idx] = ${blendshapeValue};
-              }
-            });
-          }
-        }
-      })();
-    ''';
-  }
-}
+import '../controllers/phonetic_lipsync_controller.dart';
 
 class Avatar3DScreen extends StatefulWidget {
   const Avatar3DScreen({Key? key}) : super(key: key);
@@ -61,139 +10,82 @@ class Avatar3DScreen extends StatefulWidget {
 }
 
 class _Avatar3DScreenState extends State<Avatar3DScreen> {
-  final player = AudioPlayer();
-  final lipSyncController = LipSyncController();
-  bool isPlaying = false;
-  String? currentAudioPath;
-  double animationValue = 0.0;
-  Timer? _timer;
-  final random = Random();
-  ModelViewer? modelViewer;
-  String modelViewerHtml = '';
-
+  // Controlador para sincronización labial
+  late PhoneticLipSyncController _lipSyncController;
+  
+  // Estado de la UI
+  bool _isPlaying = false;
+  double _animationValue = 0.0;
+  String _currentPhoneme = 'rest';
+  String _currentViseme = 'viseme_rest';
+  
   @override
   void initState() {
     super.initState();
-    _setupAudioPlayer();
-    _prepareModelViewerHtml();
-  }
-
-  void _prepareModelViewerHtml() {
-    // Preparar HTML personalizado para el ModelViewer con soporte para JavaScript
-    modelViewerHtml = '''
-      <model-viewer id="avatar-model" 
-        src="assets/avatar.glb" 
-        alt="Avatar 3D" 
-        camera-controls 
-        auto-rotate="false" 
-        ar="false"
-        exposure="1"
-        shadow-intensity="1"
-        environment-image="neutral"
-        style="width: 100%; height: 100%;">
-      </model-viewer>
-      <script>
-        // Función para actualizar la animación facial
-        function updateFacialAnimation(value) {
-          const model = document.getElementById('avatar-model');
-          if (model && model.model) {
-            // Implementación específica para el modelo de Ready Player Me
-            // Esto puede variar según la estructura del modelo
-            try {
-              // Buscar nodos relacionados con la boca
-              const scene = model.model.scene;
-              scene.traverse((node) => {
-                if (node.name.includes('mouth') || node.name.includes('jaw') || 
-                    node.name.includes('lip') || node.name.includes('viseme')) {
-                  // Aplicar transformación basada en el valor de animación
-                  if (node.morphTargetInfluences) {
-                    for (let i = 0; i < node.morphTargetInfluences.length; i++) {
-                      if (i === 0) { // Primer morph target (generalmente apertura de boca)
-                        node.morphTargetInfluences[i] = value;
-                      }
-                    }
-                  }
-                }
-              });
-            } catch (e) {
-              console.error('Error al animar el modelo:', e);
-            }
-          }
-        }
-      </script>
-    ''';
-  }
-
-  void _setupAudioPlayer() {
-    player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed) {
-        setState(() {
-          isPlaying = false;
-          _stopLipSync();
-        });
-      }
-    });
-  }
-
-  Future<void> _playAudio(String path) async {
-    if (currentAudioPath == path && isPlaying) {
-      await player.pause();
-      setState(() {
-        isPlaying = false;
-        _stopLipSync();
-      });
-      return;
-    }
-
-    try {
-      if (currentAudioPath != path) {
-        await player.setAsset(path);
-        currentAudioPath = path;
-      }
-      
-      await player.play();
-      setState(() {
-        isPlaying = true;
-        _startLipSync();
-      });
-    } catch (e) {
-      print('Error playing audio: $e');
-    }
-  }
-
-  void _startLipSync() {
-    _stopLipSync(); // Ensure any existing timer is cancelled
     
-    _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      // Obtener nivel de audio o usar valores aleatorios para la demostración
-      final newValue = random.nextDouble() * 0.8;
-      
-      setState(() {
-        animationValue = newValue;
-        
-        // Aplicar animación facial al modelo 3D
-        final blendshapeValue = lipSyncController.getBlendshapeValue(newValue);
-        final jsCommand = lipSyncController.generateLipSyncCommand(blendshapeValue);
-        
-        // Ejecutar JavaScript en el ModelViewer (en una implementación real)
-        // modelViewer?.executeJavaScript(jsCommand);
-      });
-    });
+    // Inicializar controlador
+    _lipSyncController = PhoneticLipSyncController();
+    
+    // Suscribirse al stream de visemas
+    _lipSyncController.visemeStream.listen(_handleVisemeUpdate);
   }
-
-  void _stopLipSync() {
-    _timer?.cancel();
-    _timer = null;
-    setState(() {
-      animationValue = 0.0;
-    });
-  }
-
+  
   @override
   void dispose() {
-    _timer?.cancel();
-    player.dispose();
+    _lipSyncController.dispose();
     super.dispose();
+  }
+  
+  // Manejar actualización de visema
+  void _handleVisemeUpdate(VisemeData visemeData) {
+    setState(() {
+      _animationValue = visemeData.intensity;
+      _currentPhoneme = visemeData.phoneme;
+      _currentViseme = visemeData.viseme;
+    });
+    
+    // Aplicar visema al modelo 3D
+    _applyVisemeToModel(visemeData);
+  }
+  
+  // Aplicar visema al modelo 3D
+  void _applyVisemeToModel(VisemeData visemeData) {
+    // Generar comando JavaScript para animar el modelo
+    final jsCommand = _lipSyncController.generateLipSyncCommand(visemeData);
+    
+    // En una implementación real, esto se ejecutaría en el ModelViewer
+    // Para el prototipo, solo imprimimos el comando
+    debugPrint('Aplicando visema: ${visemeData.viseme}');
+  }
+  
+  // Reproducir audio de muestra
+  Future<void> _playAudio(String path) async {
+    setState(() {
+      _isPlaying = !_isPlaying;
+    });
+    
+    await _lipSyncController.playAudio(path);
+    
+    if (!_isPlaying) {
+      setState(() {
+        _animationValue = 0.0;
+        _currentPhoneme = 'rest';
+        _currentViseme = 'viseme_rest';
+      });
+    }
+  }
+  
+  // Seleccionar y reproducir archivo de audio
+  Future<void> _pickAndPlayAudio() async {
+    try {
+      // En una implementación real, usaríamos FilePicker
+      // Para el prototipo, usamos un audio de muestra
+      await _playAudio('assets/audio/sample1.mp3');
+    } catch (e) {
+      debugPrint('Error picking audio: $e');
+      // Usar audio de muestra como fallback
+      await _playAudio('assets/audio/sample1.mp3');
+    }
   }
 
   @override
@@ -205,69 +97,71 @@ class _Avatar3DScreenState extends State<Avatar3DScreen> {
       ),
       body: Column(
         children: [
+          // Avatar 3D
           Expanded(
             flex: 3,
             child: Container(
               color: Colors.black87,
               child: ModelViewer(
-                backgroundColor: const Color.fromARGB(255, 30, 30, 50),
                 src: 'assets/avatar.glb',
                 alt: 'Avatar 3D',
                 ar: false,
                 autoRotate: false,
                 cameraControls: true,
-                autoPlay: true,
-                // En una implementación completa, se usaría JavaScript para controlar
-                // los morph targets del modelo basados en el audio
+                backgroundColor: const Color.fromARGB(0xFF, 0x18, 0x18, 0x18),
               ),
             ),
           ),
+          
+          // Panel de información y controles
           Expanded(
-            flex: 1,
+            flex: 2,
             child: Container(
               padding: const EdgeInsets.all(16.0),
               color: Colors.grey[900],
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Información de visema actual
                   Text(
-                    'Nivel de animación: ${(animationValue * 100).toStringAsFixed(0)}%',
+                    'Fonema: $_currentPhoneme | Visema: $_currentViseme',
                     style: const TextStyle(color: Colors.white),
                   ),
                   const SizedBox(height: 8),
+                  
+                  // Indicador de intensidad
+                  Text(
+                    'Intensidad: ${(_animationValue * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(color: Colors.white),
+                  ),
                   LinearProgressIndicator(
-                    value: animationValue,
+                    value: _animationValue,
                     backgroundColor: Colors.grey[700],
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      Colors.deepPurple.withOpacity(0.7 + animationValue * 0.3),
+                      Colors.deepPurple.withOpacity(0.7 + _animationValue * 0.3),
                     ),
                   ),
                   const SizedBox(height: 16),
+                  
+                  // Controles de audio
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       ElevatedButton.icon(
                         onPressed: () => _playAudio('assets/audio/sample1.mp3'),
-                        icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-                        label: const Text('Reproducir Audio'),
+                        icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
+                        label: const Text('Audio de Muestra'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.deepPurple,
                           foregroundColor: Colors.white,
                         ),
                       ),
                       ElevatedButton.icon(
-                        onPressed: () {
-                          // Aquí se implementaría la funcionalidad para grabar audio
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Función de grabación en desarrollo'),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.mic),
-                        label: const Text('Grabar Audio'),
+                        onPressed: _pickAndPlayAudio,
+                        icon: const Icon(Icons.upload_file),
+                        label: const Text('Seleccionar Audio'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent,
+                          backgroundColor: Colors.blueAccent,
                           foregroundColor: Colors.white,
                         ),
                       ),

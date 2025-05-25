@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../controllers/advanced_lipsync_controller.dart';
+import '../controllers/phonetic_lipsync_controller.dart';
 import '../models/viseme_data.dart';
 import '../widgets/facial_control_widget.dart';
 
@@ -12,7 +12,7 @@ class AdvancedAvatarScreen extends StatefulWidget {
 
 class _AdvancedAvatarScreenState extends State<AdvancedAvatarScreen> {
   // Controlador avanzado de lipsync con interpolación
-  late AdvancedLipSyncController _lipSyncController;
+  late PhoneticLipSyncController _lipSyncController;
   
   // Estado de la UI
   bool _isPlaying = false;
@@ -28,15 +28,11 @@ class _AdvancedAvatarScreenState extends State<AdvancedAvatarScreen> {
   void initState() {
     super.initState();
     
-    // Inicializar controlador con configuración por defecto
-    _lipSyncController = AdvancedLipSyncController(
-      baseTransitionDuration: _transitionDuration,
-      anticipationFactor: _anticipationFactor,
-      transitionCurve: Curves.easeInOut,
-    );
+    // Inicializar controlador
+    _lipSyncController = PhoneticLipSyncController();
     
-    // Suscribirse al stream de visemas interpolados
-    _lipSyncController.interpolatedVisemeStream.listen(_handleVisemeUpdate);
+    // Suscribirse al stream de visemas
+    _lipSyncController.visemeStream.listen(_handleVisemeUpdate);
   }
   
   @override

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/viseme_model.dart';
 
 /// Clase para almacenar datos de visema detectado
 class VisemeData {

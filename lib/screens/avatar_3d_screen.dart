@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:model_viewer_plus/model_viewer_plus.dart';
+import '../models/viseme_data.dart';
 import '../controllers/phonetic_lipsync_controller.dart';
 
 class Avatar3DScreen extends StatefulWidget {
@@ -64,14 +64,10 @@ class _Avatar3DScreenState extends State<Avatar3DScreen> {
       _isPlaying = !_isPlaying;
     });
     
-    await _lipSyncController.playAudio(path);
-    
-    if (!_isPlaying) {
-      setState(() {
-        _animationValue = 0.0;
-        _currentPhoneme = 'rest';
-        _currentViseme = 'viseme_rest';
-      });
+    if (_isPlaying) {
+      await _lipSyncController.playAudio(path);
+    } else {
+      await _lipSyncController.pauseAudio();
     }
   }
   
@@ -170,6 +166,56 @@ class _Avatar3DScreenState extends State<Avatar3DScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Clase ModelViewer simulada para el prototipo
+class ModelViewer extends StatelessWidget {
+  final String src;
+  final String alt;
+  final bool ar;
+  final bool autoRotate;
+  final bool cameraControls;
+  final Color backgroundColor;
+
+  const ModelViewer({
+    Key? key,
+    required this.src,
+    required this.alt,
+    this.ar = false,
+    this.autoRotate = false,
+    this.cameraControls = true,
+    this.backgroundColor = Colors.transparent,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.face,
+            size: 100,
+            color: Colors.white70,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Modelo 3D: $alt',
+            style: const TextStyle(color: Colors.white),
+          ),
+          Text(
+            'Fuente: $src',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Simulación de ModelViewer para prototipo',
+            style: TextStyle(color: Colors.white54, fontSize: 10),
           ),
         ],
       ),

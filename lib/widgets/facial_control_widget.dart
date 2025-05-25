@@ -1,12 +1,12 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../controllers/phonetic_lipsync_controller.dart';
+import '../models/viseme_data.dart';
 
-/// Widget para controlar las expresiones faciales y blendshapes del avatar 3D
 class FacialControlWidget extends StatefulWidget {
   final String modelPath;
   final PhoneticLipSyncController lipSyncController;
-
+  
   const FacialControlWidget({
     Key? key,
     required this.modelPath,
@@ -17,314 +17,257 @@ class FacialControlWidget extends StatefulWidget {
   State<FacialControlWidget> createState() => _FacialControlWidgetState();
 }
 
-class _FacialControlWidgetState extends State<FacialControlWidget> {
-  // Controlador para el ModelViewer
-  dynamic _modelViewer;
+class _FacialControlWidgetState extends State<FacialControlWidget> with SingleTickerProviderStateMixin {
+  // Estado de animación
+  late AnimationController _animationController;
+  double _mouthOpenValue = 0.0;
+  double _smileValue = 0.0;
+  double _eyeBlinkValue = 0.0;
   
-  // Estado de las expresiones faciales
-  double _blinkRate = 0.1; // Frecuencia de parpadeo (0-1)
-  double _eyeOpenness = 1.0; // Apertura de ojos (0-1)
-  double _browRaise = 0.0; // Elevación de cejas (0-1)
-  double _jawOffset = 0.0; // Desplazamiento de mandíbula (0-1)
+  // Estado de visema
+  String _currentViseme = 'viseme_rest';
+  double _visemeIntensity = 0.0;
   
-  // Temporizadores para animaciones automáticas
-  Timer? _blinkTimer;
-  Timer? _microExpressionsTimer;
-  
-  // Mapa de blendshapes disponibles en el modelo (para referencia)
-  final Map<String, List<String>> _facialFeatures = {
-    'Ojos': [
-      'eyeBlinkLeft',
-      'eyeBlinkRight',
-      'eyeSquintLeft',
-      'eyeSquintRight',
-      'eyeWideLeft',
-      'eyeWideRight'
-    ],
-    'Cejas': [
-      'browDownLeft',
-      'browDownRight',
-      'browInnerUp',
-      'browOuterUpLeft',
-      'browOuterUpRight'
-    ],
-    'Boca': [
-      'jawOpen',
-      'jawForward',
-      'jawLeft',
-      'jawRight',
-      'mouthClose',
-      'mouthDimpleLeft',
-      'mouthDimpleRight',
-      'mouthFrownLeft',
-      'mouthFrownRight',
-      'mouthFunnel',
-      'mouthLeft',
-      'mouthLowerDownLeft',
-      'mouthLowerDownRight',
-      'mouthOpen',
-      'mouthPucker',
-      'mouthRight',
-      'mouthRollLower',
-      'mouthRollUpper',
-      'mouthShrugLower',
-      'mouthShrugUpper',
-      'mouthSmileLeft',
-      'mouthSmileRight',
-      'mouthStretchLeft',
-      'mouthStretchRight',
-      'mouthUpperUpLeft',
-      'mouthUpperUpRight',
-      'mouthPress',
-      'mouthPressLeft',
-      'mouthPressRight'
-    ],
-    'Mejillas': [
-      'cheekPuff',
-      'cheekSquintLeft',
-      'cheekSquintRight'
-    ],
-    'Nariz': [
-      'noseSneerLeft',
-      'noseSneerRight'
-    ],
-    'Lengua': [
-      'tongueOut'
-    ]
+  // Características faciales
+  final Map<String, double> _facialFeatures = {
+    'eyeBlink': 0.0,
+    'mouthOpen': 0.0,
+    'smile': 0.0,
+    'browRaise': 0.0,
+    'jawOpen': 0.0,
   };
-
+  
+  // Timer para parpadeo
+  Timer? _blinkTimer;
+  
   @override
   void initState() {
     super.initState();
-    // Iniciar animaciones automáticas
-    _startBlinking();
-    _startMicroExpressions();
+    
+    // Inicializar controlador de animación
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
     
     // Suscribirse al stream de visemas
     widget.lipSyncController.visemeStream.listen(_handleVisemeUpdate);
+    
+    // Iniciar parpadeo aleatorio
+    _startRandomBlinking();
   }
   
   @override
   void dispose() {
+    _animationController.dispose();
     _blinkTimer?.cancel();
-    _microExpressionsTimer?.cancel();
     super.dispose();
   }
   
-  // Iniciar parpadeo automático
-  void _startBlinking() {
-    _blinkTimer?.cancel();
-    _blinkTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      // Calcular ciclo de parpadeo
-      final blinkInterval = 2000 + (10000 * (1 - _blinkRate)); // 2-12 segundos
-      final blinkDuration = 200; // 200ms para un parpadeo
-      
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final cyclePosition = now % blinkInterval;
-      
-      // Determinar si estamos en un parpadeo
-      if (cyclePosition < blinkDuration) {
-        // Calcular la posición en el parpadeo (0-1)
-        final blinkPosition = cyclePosition / blinkDuration;
-        
-        // Parábola para simular parpadeo natural (rápido al cerrar, más lento al abrir)
-        double eyeOpen;
-        if (blinkPosition < 0.5) {
-          // Cerrar ojo (más rápido)
-          eyeOpen = 1.0 - (blinkPosition * 2);
-        } else {
-          // Abrir ojo (más lento)
-          eyeOpen = (blinkPosition - 0.5) * 2;
-        }
-        
-        // Aplicar apertura de ojo
-        setState(() {
-          _eyeOpenness = eyeOpen * _eyeOpenness;
-        });
-        
-        // Aplicar blendshapes de parpadeo
-        _applyBlendshape('eyeBlinkLeft', 1.0 - _eyeOpenness);
-        _applyBlendshape('eyeBlinkRight', 1.0 - _eyeOpenness);
-      } else {
-        // Fuera del parpadeo, ojos abiertos
-        setState(() {
-          _eyeOpenness = 1.0;
-        });
-        
-        // Resetear blendshapes de parpadeo
-        _applyBlendshape('eyeBlinkLeft', 0.0);
-        _applyBlendshape('eyeBlinkRight', 0.0);
-      }
-    });
-  }
-  
-  // Iniciar micro-expresiones aleatorias
-  void _startMicroExpressions() {
-    _microExpressionsTimer?.cancel();
-    _microExpressionsTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      // Aplicar micro-expresiones sutiles aleatorias
-      if (widget.lipSyncController.isPlaying) {
-        // Durante el habla, añadir movimientos sutiles de cejas
-        final random = DateTime.now().millisecondsSinceEpoch / 1000;
-        final browMovement = (math.sin(random) * 0.2) + 0.1; // Valor entre 0.1 y 0.3
-        
-        setState(() {
-          _browRaise = browMovement;
-        });
-        
-        // Aplicar elevación de cejas
-        _applyBlendshape('browInnerUp', _browRaise);
-        
-        // Movimiento sutil de mandíbula
-        final jawMovement = (math.sin(random * 1.3) * 0.15) + 0.05; // Valor entre 0.05 y 0.2
-        setState(() {
-          _jawOffset = jawMovement;
-        });
-        
-        // No aplicar directamente, se combinará con visemas
-      } else {
-        // En reposo, expresiones más sutiles
-        setState(() {
-          _browRaise = 0.0;
-          _jawOffset = 0.0;
-        });
-        
-        // Resetear blendshapes
-        _applyBlendshape('browInnerUp', 0.0);
-      }
-    });
-  }
-  
-  // Manejar actualizaciones de visemas
+  // Manejar actualización de visema
   void _handleVisemeUpdate(VisemeData visemeData) {
-    // Combinar visema con expresiones faciales
-    _applyVisemeWithExpressions(visemeData);
+    setState(() {
+      _currentViseme = visemeData.viseme;
+      _visemeIntensity = visemeData.intensity;
+      
+      // Actualizar valores de animación según el visema
+      _updateAnimationValues(visemeData);
+    });
+    
+    // Aplicar visema al modelo 3D
+    _applyVisemeToModel(visemeData);
   }
   
-  // Aplicar visema combinado con expresiones faciales
-  void _applyVisemeWithExpressions(VisemeData visemeData) {
-    // Obtener comando JavaScript para el visema
-    final lipSyncCommand = widget.lipSyncController.generateLipSyncCommand(visemeData);
-    
-    // Ejecutar comando en el ModelViewer
-    _executeJavaScript(lipSyncCommand);
-    
-    // Añadir movimientos de mandíbula basados en intensidad del visema
-    final jawIntensity = visemeData.intensity * 0.7 + _jawOffset;
-    _applyBlendshape('jawOpen', jawIntensity);
-    
-    // Añadir movimientos sutiles de mejillas para visemas específicos
-    if (visemeData.viseme == 'viseme_oh' || visemeData.viseme == 'viseme_ou') {
-      _applyBlendshape('cheekPuff', visemeData.intensity * 0.3);
-    }
-    
-    // Añadir movimientos de lengua para visemas específicos
-    if (visemeData.viseme == 'viseme_th' || visemeData.viseme == 'viseme_dd') {
-      _applyBlendshape('tongueOut', visemeData.intensity * 0.2);
+  // Actualizar valores de animación según el visema
+  void _updateAnimationValues(VisemeData visemeData) {
+    switch (visemeData.viseme) {
+      case 'viseme_aa': // A
+        _mouthOpenValue = 0.8 * visemeData.intensity;
+        _smileValue = 0.2 * visemeData.intensity;
+        break;
+      case 'viseme_ee': // E
+        _mouthOpenValue = 0.5 * visemeData.intensity;
+        _smileValue = 0.7 * visemeData.intensity;
+        break;
+      case 'viseme_ih': // I
+        _mouthOpenValue = 0.3 * visemeData.intensity;
+        _smileValue = 0.8 * visemeData.intensity;
+        break;
+      case 'viseme_oh': // O
+        _mouthOpenValue = 0.7 * visemeData.intensity;
+        _smileValue = 0.1 * visemeData.intensity;
+        break;
+      case 'viseme_ou': // U
+        _mouthOpenValue = 0.4 * visemeData.intensity;
+        _smileValue = 0.0;
+        break;
+      case 'viseme_mb': // Consonantes
+        _mouthOpenValue = 0.1 * visemeData.intensity;
+        _smileValue = 0.3 * visemeData.intensity;
+        break;
+      default: // Reposo
+        _mouthOpenValue = 0.0;
+        _smileValue = 0.1;
+        break;
     }
   }
   
-  // Aplicar un blendshape específico
-  void _applyBlendshape(String blendshapeName, double value) {
-    final command = '''
-      (function() {
-        const model = document.querySelector('model-viewer');
-        if (model && model.model) {
-          const morphTargets = model.model.morphTargetDictionary;
-          if (morphTargets) {
-            const idx = morphTargets['$blendshapeName'];
-            if (idx !== undefined) {
-              model.model.morphTargetInfluences[idx] = $value;
-            }
-          }
-        }
-      })();
-    ''';
-    
-    _executeJavaScript(command);
+  // Aplicar visema al modelo 3D
+  void _applyVisemeToModel(VisemeData visemeData) {
+    // En una implementación real, esto se ejecutaría en el ModelViewer
+    // Para el prototipo, solo actualizamos el estado
+    debugPrint('Aplicando visema: ${visemeData.viseme} con intensidad ${visemeData.intensity}');
   }
   
-  // Ejecutar JavaScript en el ModelViewer
-  void _executeJavaScript(String script) {
-    // En una implementación real, esto ejecutaría JavaScript en el ModelViewer
-    // Para el prototipo, solo imprimimos el script
-    debugPrint('Executing JS: ${script.substring(0, min(50, script.length))}...');
+  // Iniciar parpadeo aleatorio
+  void _startRandomBlinking() {
+    // Cancelar timer existente si hay
+    _blinkTimer?.cancel();
     
-    // Si el ModelViewer está disponible, ejecutar el script
-    if (_modelViewer != null) {
-      // Aquí iría la implementación real
-      // _modelViewer.executeJavaScript(script);
-    }
+    // Crear nuevo timer con intervalo aleatorio
+    final randomInterval = 1000 + (DateTime.now().millisecondsSinceEpoch % 4000);
+    _blinkTimer = Timer.periodic(Duration(milliseconds: randomInterval), (timer) {
+      // Realizar parpadeo
+      _blink();
+      
+      // Cambiar intervalo para próximo parpadeo
+      timer.cancel();
+      _startRandomBlinking();
+    });
   }
-
+  
+  // Realizar parpadeo
+  void _blink() {
+    // Cerrar ojos
+    setState(() {
+      _eyeBlinkValue = 1.0;
+    });
+    
+    // Abrir ojos después de un breve momento
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) {
+        setState(() {
+          _eyeBlinkValue = 0.0;
+        });
+      }
+    });
+  }
+  
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: Container(
-            color: Colors.black87,
-            child: Center(
-              child: Text(
-                'Avatar 3D con Lipsync Avanzado',
-                style: TextStyle(color: Colors.white, fontSize: 18),
-              ),
-            ),
-          ),
-        ),
-        // Controles de depuración para expresiones faciales (opcional)
-        if (false) // Desactivado en producción
-          Container(
-            padding: const EdgeInsets.all(8.0),
-            color: Colors.grey[900],
+    return Container(
+      color: Colors.black87,
+      child: Stack(
+        children: [
+          // Modelo 3D (simulado para el prototipo)
+          Center(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('Frecuencia de parpadeo: ${(_blinkRate * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(color: Colors.white)),
-                Slider(
-                  value: _blinkRate,
-                  onChanged: (value) {
-                    setState(() {
-                      _blinkRate = value;
-                    });
-                    _startBlinking(); // Reiniciar con nueva frecuencia
-                  },
-                  min: 0.0,
-                  max: 1.0,
+                // Cara simulada
+                Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple.withOpacity(0.7),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Stack(
+                    children: [
+                      // Ojos
+                      Positioned(
+                        top: 60,
+                        left: 50,
+                        child: _buildEye(),
+                      ),
+                      Positioned(
+                        top: 60,
+                        right: 50,
+                        child: _buildEye(),
+                      ),
+                      
+                      // Boca
+                      Positioned(
+                        bottom: 60,
+                        left: 0,
+                        right: 0,
+                        child: _buildMouth(),
+                      ),
+                    ],
+                  ),
                 ),
-                Text('Elevación de cejas: ${(_browRaise * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(color: Colors.white)),
-                Slider(
-                  value: _browRaise,
-                  onChanged: (value) {
-                    setState(() {
-                      _browRaise = value;
-                    });
-                    _applyBlendshape('browInnerUp', _browRaise);
-                  },
-                  min: 0.0,
-                  max: 1.0,
+                
+                const SizedBox(height: 20),
+                
+                // Información de visema
+                Text(
+                  'Visema: $_currentViseme',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                Text(
+                  'Intensidad: ${(_visemeIntensity * 100).toStringAsFixed(0)}%',
+                  style: const TextStyle(color: Colors.white),
                 ),
               ],
             ),
           ),
-      ],
+          
+          // Overlay de información
+          Positioned(
+            top: 10,
+            left: 10,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Modelo 3D simulado',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
   
-  // Función auxiliar para limitar la longitud de cadenas
-  int min(int a, int b) => a < b ? a : b;
-}
-
-// Clase Timer simulada para pruebas
-class Timer {
-  final Duration duration;
-  final Function(Timer) callback;
+  // Construir ojo
+  Widget _buildEye() {
+    return Container(
+      width: 30,
+      height: 30 * (1.0 - _eyeBlinkValue),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Center(
+        child: Container(
+          width: 10,
+          height: 10 * (1.0 - _eyeBlinkValue),
+          decoration: const BoxDecoration(
+            color: Colors.black,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
+  }
   
-  Timer.periodic(this.duration, this.callback);
-  
-  void cancel() {
-    // Simulación
+  // Construir boca
+  Widget _buildMouth() {
+    return Center(
+      child: Container(
+        width: 80 + (_smileValue * 20),
+        height: 20 + (_mouthOpenValue * 40),
+        decoration: BoxDecoration(
+          color: Colors.red.shade900,
+          borderRadius: BorderRadius.circular(
+            10 + (_smileValue * 20),
+          ),
+        ),
+      ),
+    );
   }
 }
